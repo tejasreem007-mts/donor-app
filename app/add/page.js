@@ -1,92 +1,248 @@
 "use client";
-import { useEffect, useState } from "react";
 
-const groups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-const input = "w-full rounded border p-2 bg-white";
-const btn = "rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { ModeBanner } from "../../components/ModeBanner";
+import { useMock } from "../../context/MockContext";
+import { getHospitals, addRecipient } from "../../lib/api";
+import {
+  UserPlus,
+  CheckCircle2,
+  AlertCircle,
+  ArrowLeft,
+} from "lucide-react";
 
-export default function AddPage() {
+const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+export default function RegisterRecipientPage() {
+  const { isMockMode } = useMock();
   const [hospitals, setHospitals] = useState([]);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-  const [d, setD] = useState({ fullName: "", age: "", bloodGroup: "O+", city: "", phone: "", organs: "" });
-  const [r, setR] = useState({ fullName: "", age: "", bloodGroup: "O+", city: "", hospitalId: "", needType: "blood", organNeeded: "", urgency: "3" });
+  const [loading, setLoading] = useState(false);
+
+  const [form, setForm] = useState({
+    fullName: "",
+    age: "",
+    bloodGroup: "O+",
+    city: "",
+    hospitalId: "",
+    needType: "blood",
+    organNeeded: "",
+    urgency: "3",
+  });
 
   useEffect(() => {
-    fetch("/api/hospitals")
-      .then((x) => x.json())
-      .then((h) => {
-        setHospitals(h);
-        if (h.length) setR((p) => ({ ...p, hospitalId: String(h[0].HOSPITAL_ID) }));
-      });
-  }, []);
+    getHospitals(isMockMode).then((res) => {
+      if (res.data) {
+        setHospitals(res.data);
+        if (res.data.length) {
+          setForm((prev) => ({
+            ...prev,
+            hospitalId: String(res.data[0].HOSPITAL_ID),
+          }));
+        }
+      }
+    });
+  }, [isMockMode]);
 
-  async function submit(url, body, reset) {
+  async function handleSubmit(e) {
+    e.preventDefault();
     setMsg("");
     setErr("");
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setMsg("Saved successfully");
-      reset();
+    setLoading(true);
+
+    const res = await addRecipient(form, isMockMode);
+    setLoading(false);
+
+    if (res.success) {
+      setMsg(`Recipient "${form.fullName}" enrolled successfully! Inserted into Oracle RECIPIENT table.`);
+      setForm((prev) => ({
+        ...prev,
+        fullName: "",
+        age: "",
+        city: "",
+        organNeeded: "",
+        urgency: "3",
+      }));
     } else {
-      setErr(data.error || "Something went wrong");
+      setErr(res.error || "Failed to enroll recipient in database.");
     }
   }
 
+  const inputStyle =
+    "w-full rounded-md border border-slate-300 p-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-teal-600";
+  const labelStyle = "block text-xs font-semibold text-slate-700 uppercase mb-1";
+
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900 p-6">
-      <a href="/" className="text-blue-600 underline">Back to matching</a>
-      <h1 className="text-2xl font-bold my-4">Add donor or recipient</h1>
-      {msg && <p className="mb-4 rounded bg-green-100 p-3 text-green-800">{msg}</p>}
-      {err && <p className="mb-4 rounded bg-red-100 p-3 text-red-800">{err}</p>}
-
-      <div className="grid gap-8 md:grid-cols-2">
-        <section className="rounded border bg-white p-4 space-y-3">
-          <h2 className="text-lg font-semibold">New donor</h2>
-          <input className={input} placeholder="Full name" value={d.fullName} onChange={(e) => setD({ ...d, fullName: e.target.value })} />
-          <input className={input} placeholder="Age (18 to 65)" type="number" value={d.age} onChange={(e) => setD({ ...d, age: e.target.value })} />
-          <select className={input} value={d.bloodGroup} onChange={(e) => setD({ ...d, bloodGroup: e.target.value })}>
-            {groups.map((g) => <option key={g}>{g}</option>)}
-          </select>
-          <input className={input} placeholder="City" value={d.city} onChange={(e) => setD({ ...d, city: e.target.value })} />
-          <input className={input} placeholder="Phone" value={d.phone} onChange={(e) => setD({ ...d, phone: e.target.value })} />
-          <input className={input} placeholder="Organs to donate (comma separated, optional)" value={d.organs} onChange={(e) => setD({ ...d, organs: e.target.value })} />
-          <button className={btn} onClick={() => submit("/api/donors", d, () => setD({ fullName: "", age: "", bloodGroup: "O+", city: "", phone: "", organs: "" }))}>
-            Add donor
-          </button>
-        </section>
-
-        <section className="rounded border bg-white p-4 space-y-3">
-          <h2 className="text-lg font-semibold">New recipient</h2>
-          <input className={input} placeholder="Full name" value={r.fullName} onChange={(e) => setR({ ...r, fullName: e.target.value })} />
-          <input className={input} placeholder="Age" type="number" value={r.age} onChange={(e) => setR({ ...r, age: e.target.value })} />
-          <select className={input} value={r.bloodGroup} onChange={(e) => setR({ ...r, bloodGroup: e.target.value })}>
-            {groups.map((g) => <option key={g}>{g}</option>)}
-          </select>
-          <input className={input} placeholder="City" value={r.city} onChange={(e) => setR({ ...r, city: e.target.value })} />
-          <select className={input} value={r.hospitalId} onChange={(e) => setR({ ...r, hospitalId: e.target.value })}>
-            {hospitals.map((h) => <option key={h.HOSPITAL_ID} value={h.HOSPITAL_ID}>{h.NAME}</option>)}
-          </select>
-          <select className={input} value={r.needType} onChange={(e) => setR({ ...r, needType: e.target.value })}>
-            <option value="blood">Blood</option>
-            <option value="organ">Organ</option>
-          </select>
-          {r.needType === "organ" && (
-            <input className={input} placeholder="Organ needed (e.g. kidney)" value={r.organNeeded} onChange={(e) => setR({ ...r, organNeeded: e.target.value })} />
-          )}
-          <select className={input} value={r.urgency} onChange={(e) => setR({ ...r, urgency: e.target.value })}>
-            {[1, 2, 3, 4, 5].map((u) => <option key={u} value={u}>Urgency {u}</option>)}
-          </select>
-          <button className={btn} onClick={() => submit("/api/recipients", r, () => setR({ ...r, fullName: "", age: "", city: "", organNeeded: "" }))}>
-            Add recipient
-          </button>
-        </section>
+    <div className="max-w-2xl mx-auto space-y-6">
+      {/* Title */}
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">
+            Register Recipient
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Add a patient to the waiting list in the Oracle <code className="font-mono text-teal-700">RECIPIENT</code> table
+          </p>
+        </div>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-2xs transition"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to List</span>
+        </Link>
       </div>
-    </main>
+
+      <ModeBanner isMockActive={isMockMode} />
+
+      {msg && (
+        <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{msg}</span>
+          </div>
+          <button onClick={() => setMsg("")} className="font-bold text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {err && (
+        <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-300 text-rose-900 text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{err}</span>
+          </div>
+          <button onClick={() => setErr("")} className="font-bold text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Form Card */}
+      <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className={labelStyle}>Patient Full Name *</label>
+            <input
+              required
+              className={inputStyle}
+              placeholder="e.g. Anjali Deshmukh"
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelStyle}>Age *</label>
+              <input
+                required
+                type="number"
+                min="1"
+                max="100"
+                className={inputStyle}
+                placeholder="35"
+                value={form.age}
+                onChange={(e) => setForm({ ...form, age: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelStyle}>Blood Group *</label>
+              <select
+                className={inputStyle}
+                value={form.bloodGroup}
+                onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })}
+              >
+                {bloodGroups.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelStyle}>City *</label>
+              <input
+                required
+                className={inputStyle}
+                placeholder="e.g. Mumbai"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelStyle}>Hospital Facility *</label>
+              <select
+                className={inputStyle}
+                value={form.hospitalId}
+                onChange={(e) => setForm({ ...form, hospitalId: e.target.value })}
+              >
+                {hospitals.map((h) => (
+                  <option key={h.HOSPITAL_ID} value={h.HOSPITAL_ID}>
+                    {h.NAME} ({h.CITY})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelStyle}>Requirement Type *</label>
+              <select
+                className={inputStyle}
+                value={form.needType}
+                onChange={(e) => setForm({ ...form, needType: e.target.value })}
+              >
+                <option value="blood">Blood</option>
+                <option value="organ">Organ</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelStyle}>Urgency Level (1 to 5) *</label>
+              <select
+                className={inputStyle}
+                value={form.urgency}
+                onChange={(e) => setForm({ ...form, urgency: e.target.value })}
+              >
+                {[1, 2, 3, 4, 5].map((u) => (
+                  <option key={u} value={u}>
+                    Level {u} {u >= 4 ? "(Critical)" : u === 3 ? "(Moderate)" : "(Normal)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {form.needType === "organ" && (
+            <div>
+              <label className={labelStyle}>Organ Needed *</label>
+              <input
+                required
+                className={inputStyle}
+                placeholder="e.g. kidney, liver, cornea"
+                value={form.organNeeded}
+                onChange={(e) => setForm({ ...form, organNeeded: e.target.value })}
+              />
+            </div>
+          )}
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-teal-600 hover:bg-teal-700 py-2.5 text-white text-sm font-semibold transition shadow-xs disabled:opacity-50"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>{loading ? "Enrolling Recipient..." : "Enroll Recipient"}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
