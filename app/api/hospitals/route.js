@@ -1,11 +1,23 @@
 import { getConn } from "../../../lib/db";
 
 export async function GET() {
-  const conn = await getConn();
+  let conn;
   try {
-    const r = await conn.execute("select hospital_id, name from hospital order by name");
+    conn = await getConn();
+    const r = await conn.execute(
+      "select hospital_id, name, city from hospital order by name"
+    );
     return Response.json(r.rows);
+  } catch (e) {
+    return Response.json(
+      { error: `Failed to fetch hospitals: ${e.message}` },
+      { status: 500 }
+    );
   } finally {
-    await conn.close();
+    if (conn) {
+      try {
+        await conn.close();
+      } catch (_) {}
+    }
   }
 }
